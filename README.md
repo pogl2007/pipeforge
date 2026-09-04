@@ -128,33 +128,6 @@ Next.js: без секрета никто не может дёрнуть `/run` 
 | SHAP | недоступен | включён |
 | Экспорт .pkl | недоступен | включён |
 
-## 6. Деплой
-
-### Frontend → Vercel
-
-1. Импортируй репозиторий в Vercel.
-2. Задай переменные окружения `DATABASE_URL`, `NEXTAUTH_SECRET`,
-   `NEXTAUTH_URL` (продовый домен), `FASTAPI_URL` (адрес Railway-бэкенда),
-   `INTERNAL_API_SECRET` (случайная строка, **та же**, что на Railway).
-3. Build command по умолчанию (`next build`) подойдёт как есть.
-4. После первого деплоя примени миграции к продовой БД:
-   `npx prisma migrate deploy`.
-
-### Backend → Railway
-
-1. Создай новый сервис из папки `backend/`.
-2. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`.
-3. Задай переменную окружения `INTERNAL_API_SECRET` — **то же самое**
-   значение, что и на Vercel. Без совпадения `/run` будет всегда отвечать 401.
-4. В `main.py` добавь домен фронтенда в список `allow_origins`, если он
-   отличается от `pipeforge.vercel.app`.
-
-### БД → Railway PostgreSQL
-
-1. Добавь плагин PostgreSQL в проект Railway.
-2. Скопируй выданный `DATABASE_URL` в переменные окружения Vercel-проекта.
-3. Примени миграции (см. выше).
-
 ## Структура проекта
 
 ```
