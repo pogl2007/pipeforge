@@ -1,0 +1,13 @@
+{
+  "frameWidth": 1920,
+  "frameHeight": 1080,
+  "cols": 7,
+  "rows": 7,
+  "framesPerAtlas": 45,
+  "totalFrames": 90,
+  "atlases": [
+    "atlas-0.webp",
+    "atlas-1.webp"
+  ],
+  "poster": "poster.webp"
+}

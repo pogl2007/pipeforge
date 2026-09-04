@@ -1,36 +1,174 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PIPEFORGE
 
-## Getting Started
+Визуальный конструктор ML-пайплайнов: перетаскивай блоки, соединяй стрелками,
+запускай обучение с автоподбором гиперпараметров (Optuna) и объяснением
+модели (SHAP).
 
-First, run the development server:
+Состоит из двух независимых сервисов:
+
+- **Frontend** — Next.js 14 (App Router, TypeScript), Tailwind, ReactFlow,
+  Framer Motion, Recharts, NextAuth v5, Prisma + PostgreSQL.
+- **Backend** — FastAPI (Python 3.11), sklearn / XGBoost / LightGBM /
+  CatBoost, Optuna, SHAP, joblib.
+
+## Требования
+
+- Node.js 18+ и npm
+- Python **3.11** (важно: XGBoost/LightGBM/CatBoost/SHAP на момент написания
+  ещё не имеют колёс под более новые версии Python)
+- PostgreSQL 14+ (локально, в Docker или у облачного провайдера — например,
+  Railway PostgreSQL)
+
+## 1. Frontend (Next.js)
+
+```bash
+npm install
+```
+
+Скопируй `.env.example` в `.env` и заполни переменные (см. раздел ниже).
+
+Примени миграции Prisma к твоей базе PostgreSQL:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+Засей тестового пользователя и 5 демо-пайплайнов:
+
+```bash
+npx prisma db seed
+```
+
+Это создаст пользователя `test@pipeforge.ru` / `test12345` с планом **PRO**.
+
+Запусти дев-сервер:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Frontend поднимется на http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 2. Backend (FastAPI)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd backend
+python -m venv venv
+```
 
-## Learn More
+Активируй окружение:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Windows
+venv\Scripts\activate
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# macOS / Linux
+source venv/bin/activate
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Установи зависимости и запусти сервер:
 
-## Deploy on Vercel
+```bash
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Backend поднимется на http://localhost:8000. Проверить:
+`GET http://localhost:8000/datasets`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Датасет Titanic — синтетическая репродукция с реалистичными статистическими
+закономерностями (пол/класс/возраст влияют на выживаемость), сгенерированная
+скриптом `backend/generate_titanic.py` — это исключает зависимость от
+внешней сети при установке и деплое. Iris и California Housing загружаются
+через `sklearn.datasets` напрямую.
+
+## 3. Переменные окружения
+
+`.env` (frontend, в корне проекта):
+
+```
+DATABASE_URL="postgresql://user:password@localhost:5432/pipeforge?schema=public"
+NEXTAUTH_SECRET="случайная-длинная-строка"
+NEXTAUTH_URL="http://localhost:3000"
+FASTAPI_URL="http://localhost:8000"
+INTERNAL_API_SECRET="ещё-одна-случайная-строка-совпадающая-с-бэкендом"
+```
+
+`NEXTAUTH_SECRET` и `INTERNAL_API_SECRET` можно сгенерировать командой:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Backend читает `INTERNAL_API_SECRET` из переменной окружения процесса
+(например, `INTERNAL_API_SECRET=... uvicorn main:app ...` или переменная
+окружения сервиса на Railway) — значение должно быть **одинаковым** на
+фронтенде и бэкенде.
+
+## 4. Как связаны frontend и backend
+
+Next.js API-роуты (`/api/pipelines/[id]/run`) выступают прокси: проверяют
+авторизацию и лимиты тарифа (дневные запуски, доступные модели, кол-во
+Optuna-триалов), затем шлют граф пайплайна на `FASTAPI_URL/run` вместе с
+заголовком `X-Internal-Secret`. FastAPI не знает о пользователях и БД, но
+проверяет этот заголовок на `/run` — без него запрос отклоняется с 401.
+Это защищает от прямого вызова backend API в обход тарифных ограничений
+Next.js: без секрета никто не может дёрнуть `/run` напрямую с `plan: "pro"`.
+Дублирующая проверка модели/SHAP на Python-стороне остаётся как вторая линия
+защиты, но именно секрет закрывает сам доступ к обучению.
+
+## 5. Тарифы
+
+| | FREE | PRO |
+|---|---|---|
+| Модели | XGBoost, RandomForest, LinearReg | + LightGBM, CatBoost, SVM, KNN, MLP |
+| Optuna | 10 триалов | 50 триалов |
+| Обучение | по одной модели | параллельно (joblib) |
+| Запусков в день | 5 | без лимита |
+| SHAP | недоступен | включён |
+| Экспорт .pkl | недоступен | включён |
+
+## 6. Деплой
+
+### Frontend → Vercel
+
+1. Импортируй репозиторий в Vercel.
+2. Задай переменные окружения `DATABASE_URL`, `NEXTAUTH_SECRET`,
+   `NEXTAUTH_URL` (продовый домен), `FASTAPI_URL` (адрес Railway-бэкенда),
+   `INTERNAL_API_SECRET` (случайная строка, **та же**, что на Railway).
+3. Build command по умолчанию (`next build`) подойдёт как есть.
+4. После первого деплоя примени миграции к продовой БД:
+   `npx prisma migrate deploy`.
+
+### Backend → Railway
+
+1. Создай новый сервис из папки `backend/`.
+2. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+3. Задай переменную окружения `INTERNAL_API_SECRET` — **то же самое**
+   значение, что и на Vercel. Без совпадения `/run` будет всегда отвечать 401.
+4. В `main.py` добавь домен фронтенда в список `allow_origins`, если он
+   отличается от `pipeforge.vercel.app`.
+
+### БД → Railway PostgreSQL
+
+1. Добавь плагин PostgreSQL в проект Railway.
+2. Скопируй выданный `DATABASE_URL` в переменные окружения Vercel-проекта.
+3. Примени миграции (см. выше).
+
+## Структура проекта
+
+```
+/app                    Next.js App Router: страницы и API-роуты
+/components             UI, лендинг, конструктор, результаты, история
+/lib                     Prisma-клиент, auth, planGuard, мост к FastAPI
+/hooks                   useRunPipeline
+/types                   Общие TypeScript-типы
+/prisma                  schema.prisma, seed.ts
+/backend                 FastAPI-сервис
+  main.py                Роуты + CORS
+  graph_parser.py        JSON-граф → топологическая сортировка → sklearn Pipeline
+  optimizer.py            Optuna-подбор гиперпараметров по моделям
+  evaluator.py           Метрики, SHAP, генерация Python-кода
+  runner.py              Оркестрация запуска (сплит, обучение, сравнение)
+  datasets.py            Встроенные датасеты + загруженные файлы
+```

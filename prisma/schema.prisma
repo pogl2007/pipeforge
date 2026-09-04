@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum PipelineStatus {
+  DRAFT
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  passwordHash  String
+  name          String?
+  plan          Plan       @default(FREE)
+  planExpiresAt DateTime?
+  createdAt     DateTime   @default(now())
+  pipelines     Pipeline[]
+  dailyRuns     DailyRun[]
+}
+
+model Pipeline {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String         @default("Без названия")
+  graph     Json
+  status    PipelineStatus @default(DRAFT)
+  result    Json?
+  bestScore Float?
+  bestModel String?
+  duration  Float?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model DailyRun {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date   String
+  runs   Int    @default(0)
+
+  @@unique([userId, date])
+}

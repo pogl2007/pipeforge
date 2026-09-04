@@ -1,0 +1,12 @@
+{
+  "frameWidth": 828,
+  "frameHeight": 466,
+  "cols": 7,
+  "rows": 7,
+  "framesPerAtlas": 45,
+  "totalFrames": 45,
+  "atlases": [
+    "atlas-0.webp"
+  ],
+  "poster": "poster.webp"
+}
