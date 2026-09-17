@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+backend
+.env
+.env.local
+*.log
+npm-debug.log*
+.flythrough-raw
+.flythrough-source
+.flythrough-compare

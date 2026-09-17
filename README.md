@@ -19,6 +19,26 @@
 - PostgreSQL 14+ (локально, в Docker или у облачного провайдера — например,
   Railway PostgreSQL)
 
+## Docker
+
+Проще всего поднять всё сразу — Postgres, backend и frontend — одной командой:
+
+```bash
+docker compose up --build
+```
+
+Frontend будет на http://localhost:3000, backend — на http://localhost:8000.
+Миграции Prisma применяются автоматически при старте контейнера `web`.
+По умолчанию используются dev-секреты из `docker-compose.yml` — для чего-то
+серьёзнее задай свои `NEXTAUTH_SECRET` и `INTERNAL_API_SECRET` в `.env` рядом
+с `docker-compose.yml` (docker compose подхватит их сам).
+
+Демо-пользователя после первого запуска можно засеять так:
+
+```bash
+docker compose exec web npx prisma db seed
+```
+
 ## 1. Frontend (Next.js)
 
 ```bash
